@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hızlı Okuma Modu</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent2: #a78bfa;
+    --border: #334155;
+    --highlight: #f43f5e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  .container { max-width: 1000px; margin: 0 auto; width: 100%; }
+
+  header { text-align: center; padding: 20px 0 30px; }
+  h1 {
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  header p { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+
+  .upload-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+  }
+  label.file-btn {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #0b1220;
+    font-weight: 700;
+    padding: 12px 22px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+  label.file-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+  input[type="file"] { display: none; }
+  .hint { color: var(--muted); font-size: 0.85rem; width: 100%; text-align: center; }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    background: #0b1220;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    margin-top: 12px;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: rgba(255,255,255,0.12); border-color: var(--accent); }
+  .btn.primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #0b1220;
+    border: none;
+  }
+  .btn.primary:hover { transform: translateY(-2px); }
+
+  /* ============ READER ============ */
+  #reader { display: none; }
+
+  .reader-display {
+    background: #0b1220;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 40px 10px;
+    position: relative;
+    overflow: hidden;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Ortadaki dikey kılavuz çizgisi (ORP çizgisi) */
+  .reader-display::before,
+  .reader-display::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    width: 1px;
+    height: 26px;
+    background: rgba(56, 189, 248, 0.35);
+    transform: translateX(-0.5px);
+    pointer-events: none;
+  }
+  .reader-display::before { top: 14px; }
+  .reader-display::after  { bottom: 14px; }
+
+  /* Grid: 1fr | auto (pivot) | 1fr  → kırmızı harf daima tam ortada */
+  #word {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: baseline;
+    font-size: clamp(2rem, 8vw, 4rem);
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #fff;
+    font-family: "Courier New", monospace;
+    line-height: 1.2;
+  }
+
+  #word span { white-space: pre; }
+
+  .wp-left   { text-align: right; }
+  .wp-center { color: var(--highlight); }
+  .wp-right  { text-align: left; }
+
+  /* ============ CONTROLS ============ */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 18px;
+  }
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.04);
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 160px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px; background: var(--accent);
+    border-radius: 50%; cursor: pointer; border: none;
+  }
+  .value-badge {
+    background: rgba(56,189,248,0.15);
+    color: var(--accent);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    min-width: 78px;
+    text-align: center;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    margin-top: 18px;
+    overflow: hidden;
+  }
+  #progressFill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.1s linear;
+  }
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 8px;
+  }
+
+  kbd {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    border: 1px solid var(--border);
+    font-family: monospace;
+  }
+  .shortcuts { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>⚡ Hızlı Okuma Modu</h1>
+    <p>Kırmızı harf daima ekranın tam ortasında sabit kalır.</p>
+  </header>
+
+  <!-- Yükleme Paneli -->
+  <div class="panel" id="uploadPanel">
+    <div class="upload-area">
+      <label class="file-btn" for="fileInput">📂 Kitap Yükle (.txt)</label>
+      <input type="file" id="fileInput" accept=".txt,text/plain">
+      <button class="btn" id="demoBtn">📖 Örnek Metin</button>
+      <span class="hint">veya aşağıya metni doğrudan yapıştır:</span>
+    </div>
+    <textarea id="textInput" placeholder="Metni buraya yapıştırabilirsin..."></textarea>
+    <div class="controls">
+      <button class="btn primary" id="startBtn">▶ Okumaya Başla</button>
+    </div>
+  </div>
+
+  <!-- Okuyucu -->
+  <div class="panel" id="reader">
+    <div class="reader-display">
+      <div id="word">
+        <span class="wp-left"></span>
+        <span class="wp-center">H</span>
+        <span class="wp-right">azır</span>
+      </div>
+    </div>
+
+    <div class="progress-bar"><div id="progressFill"></div></div>
+    <div class="stats">
+      <span id="progressText">0 / 0</span>
+      <span id="timeLeft">~0 dk kaldı</span>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="playPauseBtn">⏸ Duraklat</button>
+      <button class="btn" id="prevBtn">⏮ Geri</button>
+      <button class="btn" id="nextBtn">İleri ⏭</button>
+      <button class="btn" id="restartBtn">↺ Baştan</button>
+      <button class="btn" id="backBtn">← Metni Değiştir</button>
+    </div>
+
+    <div class="controls">
+      <div class="slider-group">
+        <span>Hız</span>
+        <input type="range" id="speed" min="100" max="1500" step="25" value="400">
+        <span class="value-badge" id="speedVal">400 WPM</span>
+      </div>
+      <div class="slider-group">
+        <span>Kelime Grubu</span>
+        <input type="range" id="chunk" min="1" max="4" step="1" value="1">
+        <span class="value-badge" id="chunkVal">1 kelime</span>
+      </div>
+    </div>
+
+    <div class="shortcuts">
+      <kbd>Space</kbd> Duraklat/Başlat &nbsp; • &nbsp;
+      <kbd>←</kbd><kbd>→</kbd> Kelime atla &nbsp; • &nbsp;
+      <kbd>↑</kbd><kbd>↓</kbd> Hız değiştir
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const els = {
+    uploadPanel: document.getElementById('uploadPanel'),
+    reader: document.getElementById('reader'),
+    fileInput: document.getElementById('fileInput'),
+    textInput: document.getElementById('textInput'),
+    startBtn: document.getElementById('startBtn'),
+    demoBtn: document.getElementById('demoBtn'),
+    word: document.getElementById('word'),
+    playPauseBtn: document.getElementById('playPauseBtn'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    restartBtn: document.getElementById('restartBtn'),
+    backBtn: document.getElementById('backBtn'),
+    speed: document.getElementById('speed'),
+    speedVal: document.getElementById('speedVal'),
+    chunk: document.getElementById('chunk'),
+    chunkVal: document.getElementById('chunkVal'),
+    progressFill: document.getElementById('progressFill'),
+    progressText: document.getElementById('progressText'),
+    timeLeft: document.getElementById('timeLeft'),
+  };
+
+  const state = {
+    words: [],
+    index: 0,
+    chunkSize: 1,
+    wpm: 400,
+    playing: false,
+    timer: null,
+  };
+
+  // -------- Metin işleme --------
+  function prepareText(raw) {
+    return raw.replace(/\s+/g, ' ').trim();
+  }
+  function splitWords(text) {
+    return text.split(' ').filter(w => w.length > 0);
+  }
+  function escapeHTML(s) {
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // -------- ORP (Optimal Recognition Point) --------
+  function splitORP(word) {
+    const len = word.length;
+    let pivot = 0;
+    if (len > 1 && len <= 5)        pivot = 1;
+    else if (len >= 6 && len <= 9)  pivot = 2;
+    else if (len >= 10 && len <= 13) pivot = 3;
+    else if (len > 13)              pivot = 4;
+    if (pivot >= len) pivot = Math.max(0, len - 1);
+
+    return {
+      before: word.slice(0, pivot),
+      pivot:  word[pivot] || '',
+      after:  word.slice(pivot + 1)
+    };
+  }
+
+  // -------- Render --------
+  function render() {
+    const { words, index, chunkSize } = state;
+    if (!words.length) return;
+
+    const firstWord = words[index] || '';
+    const { before, pivot, after } = splitORP(firstWord);
+
+    const restWords = words.slice(index + 1, index + chunkSize);
+    const restText = restWords.length ? ' ' + restWords.join(' ') : '';
+
+    els.word.innerHTML =
+      `<span class="wp-left">${escapeHTML(before)}</span>` +
+      `<span class="wp-center">${escapeHTML(pivot)}</span>` +
+      `<span class="wp-right">${escapeHTML(after + restText)}</span>`;
+
+    const pct = (index / Math.max(1, words.length - 1)) * 100;
+    els.progressFill.style.width = pct + '%';
+    els.progressText.textContent = `${Math.min(index + chunkSize, words.length)} / ${words.length}`;
+
+    const remainingWords = words.length - index;
+    const minutes = remainingWords / state.wpm;
+    if (minutes < 1) els.timeLeft.textContent = `~${Math.ceil(minutes * 60)} sn kaldı`;
+    else els.timeLeft.textContent = `~${Math.ceil(minutes)} dk kaldı`;
+  }
+
+  function setMessage(text, color) {
+    els.word.innerHTML =
+      `<span class="wp-left"></span>` +
+      `<span class="wp-center" style="color:${color || 'var(--highlight)'}">${escapeHTML(text)}</span>` +
+      `<span class="wp-right"></span>`;
+  }
+
+  // -------- Yükleme --------
+  function loadText(text) {
+    const clean = prepareText(text);
+    if (!clean) {
+      alert('Lütfen geçerli bir metin yükleyin.');
+      return;
+    }
+    state.words = splitWords(clean);
+    state.index = 0;
+    els.uploadPanel.style.display = 'none';
+    els.reader.style.display = 'block';
+    render();
+    start();
+  }
+
+  // -------- Oynatma --------
+  function step() {
+    const { words, chunkSize, wpm } = state;
+    if (state.index >= words.length) {
+      pause();
+      setMessage('✓', '#22c55e');
+      return;
+    }
+    render();
+    state.index += chunkSize;
+
+    const wordsShown = Math.min(chunkSize, words.length - (state.index - chunkSize));
+    const interval = (wordsShown / wpm) * 60 * 1000;
+    state.timer = setTimeout(step, interval);
+  }
+
+  function start() {
+    if (!state.words.length || state.playing) return;
+    state.playing = true;
+    els.playPauseBtn.textContent = '⏸ Duraklat';
+    step();
+  }
+  function pause() {
+    state.playing = false;
+    clearTimeout(state.timer);
+    els.playPauseBtn.textContent = '▶ Devam Et';
+  }
+  function togglePlay() {
+    if (state.playing) pause();
+    else {
+      if (state.index >= state.words.length) state.index = 0;
+      start();
+    }
+  }
+  function jump(delta) {
+    const wasPlaying = state.playing;
+    pause();
+    state.index = Math.max(0, Math.min(state.words.length - 1, state.index + delta));
+    render();
+    if (wasPlaying) start();
+  }
+  function restart() {
+    pause();
+    state.index = 0;
+    render();
+    start();
+  }
+
+  // -------- Event'ler --------
+  els.fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => loadText(ev.target.result);
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  els.demoBtn.addEventListener('click', () => {
+    const demo = `Hızlı okuma, metni göz hareketlerini azaltarak ve kelimeleri tek tek ya da küçük gruplar hâlinde sunarak okuma hızını ciddi biçimde artıran bir tekniktir. Klasik okumada gözleriniz satır boyunca sıçrar ve her sıçramada bir miktar zaman kaybedersiniz. Bu uygulama, kelimeleri aynı noktada göstermek suretiyle gözünüzün yapması gereken hareketi neredeyse sıfıra indirir. Kırmızı harf, gözünüzün odaklanması gereken noktayı gösterir ve her zaman ekranın tam ortasında sabit kalır. Böylece kelimeyi daha hızlı tanır, anlamayı kaybetmeden dakikada yüzlerce kelime okuyabilirsiniz.`;
+    els.textInput.value = demo;
+    loadText(demo);
+  });
+
+  els.startBtn.addEventListener('click', () => {
+    const text = els.textInput.value.trim();
+    if (!text) { alert('Lütfen bir metin yapıştır ya da dosya yükle.'); return; }
+    loadText(text);
+  });
+
+  els.playPauseBtn.addEventListener('click', togglePlay);
+  els.prevBtn.addEventListener('click', () => jump(-state.chunkSize));
+  els.nextBtn.addEventListener('click', () => jump(state.chunkSize));
+  els.restartBtn.addEventListener('click', restart);
+  els.backBtn.addEventListener('click', () => {
+    pause();
+    state.index = 0;
+    els.reader.style.display = 'none';
+    els.uploadPanel.style.display = 'block';
+  });
+
+  els.speed.addEventListener('input', (e) => {
+    state.wpm = parseInt(e.target.value, 10);
+    els.speedVal.textContent = state.wpm + ' WPM';
+    render();
+  });
+  els.chunk.addEventListener('input', (e) => {
+    state.chunkSize = parseInt(e.target.value, 10);
+    els.chunkVal.textContent = state.chunkSize + ' kelime';
+    render();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (els.reader.style.display !== 'block') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch (e.code) {
+      case 'Space':      e.preventDefault(); togglePlay(); break;
+      case 'ArrowRight': e.preventDefault(); jump(state.chunkSize); break;
+      case 'ArrowLeft':  e.preventDefault(); jump(-state.chunkSize); break;
+      case 'ArrowUp':
+        e.preventDefault();
+        els.speed.value = Math.min(1500, state.wpm + 25);
+        els.speed.dispatchEvent(new Event('input'));
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        els.speed.value = Math.max(100, state.wpm - 25);
+        els.speed.dispatchEvent(new Event('input'));
+        break;
+    }
+  });
+})();
+</script>
+</body>
+</html>
